@@ -69,16 +69,6 @@ class ResK1DWK1(nn.Module):
             self.nbitsA = structure_info['nbitsA']
             self.nbitsW = structure_info['nbitsW']
 
-            if isinstance(self.nbitsA, int):
-                self.nbitsA = [self.nbitsA] * 3
-            elif isinstance(self.nbitsA, list) and len(self.nbitsA) == 1:
-                self.nbitsA = self.nbitsA * 3
-
-            if isinstance(self.nbitsW, int):
-                self.nbitsW = [self.nbitsW] * 3
-            elif isinstance(self.nbitsW, list) and len(self.nbitsW) == 1:
-                self.nbitsW = self.nbitsW * 3
-
             if len(self.nbitsA) != 3 or len(self.nbitsW) != 3:
                 raise ValueError(
                     'nbitsA/W must have three elements in %s, not nbitsA %d or nbitsW %d'
