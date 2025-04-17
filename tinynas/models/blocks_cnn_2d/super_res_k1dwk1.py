@@ -58,7 +58,7 @@ class ResK1DWK1(nn.Module):
         self.no_create = no_create
         self.dropout_channel = dropout_channel
         self.dropout_layer = dropout_layer
-
+        self.with_res = structure_info.get('with_res', True)
         if 'force_resproj' in structure_info:
             self.force_resproj = structure_info['force_resproj']
         else:
@@ -68,10 +68,22 @@ class ResK1DWK1(nn.Module):
             self.quant = True
             self.nbitsA = structure_info['nbitsA']
             self.nbitsW = structure_info['nbitsW']
+
+            if isinstance(self.nbitsA, int):
+                self.nbitsA = [self.nbitsA] * 3
+            elif isinstance(self.nbitsA, list) and len(self.nbitsA) == 1:
+                self.nbitsA = self.nbitsA * 3
+
+            if isinstance(self.nbitsW, int):
+                self.nbitsW = [self.nbitsW] * 3
+            elif isinstance(self.nbitsW, list) and len(self.nbitsW) == 1:
+                self.nbitsW = self.nbitsW * 3
+
             if len(self.nbitsA) != 3 or len(self.nbitsW) != 3:
                 raise ValueError(
-                    'nbitsA/W must has three elements in %s, not nbitsA %d or nbitsW %d'
+                    'nbitsA/W must have three elements in %s, not nbitsA %d or nbitsW %d'
                     % (self.__class__, len(self.nbitsA), len(self.nbitsW)))
+
 
         else:
             self.quant = False
@@ -158,7 +170,8 @@ class ResK1DWK1(nn.Module):
             + self.out_channels / self.stride ** 2  # add relu flops
 
         # residual link
-        self.is_reslink = True
+        self.is_reslink = self.with_res and (
+        self.in_channels == self.out_channels or self.force_resproj)
         if self.in_channels == self.out_channels:
             if self.no_create:
                 pass
@@ -198,8 +211,6 @@ class ResK1DWK1(nn.Module):
             #     pass
             # else:
             #     network_weight_stupid_init(self.residual_proj)
-        else:
-            self.is_reslink = False
 
         if self.is_reslink:
             if self.stride == 2:
@@ -219,6 +230,8 @@ class ResK1DWK1(nn.Module):
         if self.is_reslink:
             reslink = self.residual_downsample(x)
             reslink = self.residual_proj(reslink)
+        else:
+            reslink = 0  # dummy tensor
 
         output = x
         output = self.conv1(output)
@@ -384,6 +397,22 @@ class SuperResK1DWK1(BaseSuperBlock):
         }
         :param NAS_mode:
         '''
+                # 自动扩展 nbitsA/W 到和 L 一样长
+        L = structure_info.get('L', 1)
+        inner_layers = 3  # 每个 block 需要 3 个 nbits 值
+
+        for nbits_key in ['nbitsA', 'nbitsW']:
+            if nbits_key in structure_info:
+                val = structure_info[nbits_key]
+                if isinstance(val, int):
+                    structure_info[nbits_key] = [val] * (L * inner_layers)
+                elif isinstance(val, list):
+                    if len(val) == 1:
+                        structure_info[nbits_key] = val * (L * inner_layers)
+                    elif len(val) != (L * inner_layers):
+                        raise ValueError(f"{nbits_key} length={len(val)} does not match L×3={L * inner_layers}")
+
+
         structure_info['inner_class'] = 'ResK1DWK1'
         super().__init__(
             structure_info=structure_info,

@@ -615,6 +615,16 @@ class BaseSuperBlock(nn.Module):
         self.model_size = 0.0
         self.flops = 0.0
 
+        if isinstance(structure_info['nbitsA'], int):
+            structure_info['nbitsA'] = [structure_info['nbitsA']] * (self.num_inner_layers * 3)
+        elif isinstance(structure_info['nbitsA'], list) and len(structure_info['nbitsA']) == 1:
+            structure_info['nbitsA'] = structure_info['nbitsA'] * (self.num_inner_layers * 3)
+
+        if isinstance(structure_info['nbitsW'], int):
+            structure_info['nbitsW'] = [structure_info['nbitsW']] * (self.num_inner_layers * 3)
+        elif isinstance(structure_info['nbitsW'], list) and len(structure_info['nbitsW']) == 1:
+            structure_info['nbitsW'] = structure_info['nbitsW'] * (self.num_inner_layers * 3)
+
         self.block_list = nn.ModuleList()
 
         current_res = 1.0
@@ -642,15 +652,27 @@ class BaseSuperBlock(nn.Module):
             inner_structure_info['out'] = out_channels
             inner_structure_info['s'] = stride
             inner_structure_info['force_resproj'] = force_resproj
-
             inner_structure_info['class'] = inner_structure_info['inner_class']
+            
+
+
             if self.quant:
+                L = structure_info.get('L', 1)
+                inner_layers = self.inner_layers
+                total_needed = L * inner_layers
+
+                for key in ['nbitsA', 'nbitsW']:
+                    val = structure_info[key]
+                    if isinstance(val, list) and len(val) == 1:
+                        structure_info[key] = val * total_needed
+                    elif len(val) < total_needed:
+                        raise ValueError(f"{key} length {len(val)} < needed {total_needed}")
+
                 inner_structure_info['nbitsA'] = structure_info[
-                    'nbitsA'][block_id * self.inner_layers:(block_id + 1)
-                              * self.inner_layers]
+                    'nbitsA'][block_id * self.inner_layers:(block_id + 1) * self.inner_layers]
                 inner_structure_info['nbitsW'] = structure_info[
-                    'nbitsW'][block_id * self.inner_layers:(block_id + 1)
-                              * self.inner_layers]
+                    'nbitsW'][block_id * self.inner_layers:(block_id + 1) * self.inner_layers]
+
 
             the_block = self.inner_class(
                 structure_info=inner_structure_info,

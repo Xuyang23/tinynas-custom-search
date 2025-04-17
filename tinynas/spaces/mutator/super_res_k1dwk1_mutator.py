@@ -101,4 +101,19 @@ class SuperResK1DWK1Mutator():
 
             structure_info['L'] = new_L
 
+        # === Ensure nbitsA/W are valid and auto-expanded ===
+        inner_layers = 3
+        L = structure_info.get('L', 1)
+
+        for nbits_key in ['nbitsA', 'nbitsW']:
+            val = structure_info.get(nbits_key, [8])
+            if isinstance(val, int):
+                structure_info[nbits_key] = [val] * (L * inner_layers)
+            elif isinstance(val, list):
+                if len(val) == 1:
+                    structure_info[nbits_key] = val * (L * inner_layers)
+                elif len(val) != L * inner_layers:
+                    structure_info[nbits_key] = [val[0]] * (L * inner_layers)
+
+
         return structure_info
